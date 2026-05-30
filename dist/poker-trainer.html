@@ -59,6 +59,10 @@
     border:3px solid #0c3a20;box-shadow:inset 0 0 26px rgba(0,0,0,.45)}
   .ptable .btn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     color:#bfe6cf;font-size:10px;letter-spacing:1px;text-align:center;line-height:1.4}
+  .ptable .dealer{position:absolute;transform:translate(-50%,-50%);width:23px;height:23px;
+    border-radius:50%;background:radial-gradient(circle at 38% 32%,#fff,#dfe3e7);
+    color:#15202b;font-size:12px;font-weight:800;display:flex;align-items:center;
+    justify-content:center;border:1px solid #b9c0c7;box-shadow:0 2px 5px rgba(0,0,0,.55);z-index:3}
   .seat{position:absolute;transform:translate(-50%,-50%);background:var(--panel2);
     border:1px solid var(--line);color:var(--dim);font-size:11px;font-weight:700;
     padding:4px 7px;border-radius:8px;white-space:nowrap}
@@ -212,9 +216,11 @@ function tableHtml(s){
   const heroIdx=TABLE_SEATS.indexOf(s.hero);
   const cx=170, cy=86, ax=150, ay=66;
   let html=`<div class="ptable"><div class="felt"></div><div class="btn">9-MAX</div>`;
+  let btnX, btnY;
   TABLE_SEATS.forEach((p,i)=>{
     const ang=(-90 + i*(360/TABLE_SEATS.length))*Math.PI/180;
     const x=cx+ax*Math.cos(ang), y=cy+ay*Math.sin(ang);
+    if(p==="BTN"){ btnX=x; btnY=y; }
     let cls="seat", who="";
     if(heroes.includes(p)){ cls+=" hero"; who='<span class="who">내 자리</span>'; }
     else if(vills.includes(p)){ cls+=" villain"; who='<span class="who">상대</span>'; }
@@ -223,6 +229,10 @@ function tableHtml(s){
     else cls+=" dim";
     html+=`<div class="${cls}" style="left:${x}px;top:${y}px">${who}${p}</div>`;
   });
+  // dealer button: in front of BTN, nudged toward table centre
+  const dx=cx-btnX, dy=cy-btnY, len=Math.hypot(dx,dy);
+  const dX=btnX+dx/len*32, dY=btnY+dy/len*32;
+  html+=`<div class="dealer" style="left:${dX}px;top:${dY}px">D</div>`;
   return html+"</div>";
 }
 function spotCaption(s){
