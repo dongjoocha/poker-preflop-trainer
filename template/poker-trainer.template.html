@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Preflop Charts Trainer</title>
+<link rel="icon" type="image/png" href="{{FAVICON}}">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Preflop">
+<meta name="theme-color" content="#0f1419">
 <style>
   :root{
     --bg:#0f1419; --panel:#1a2027; --panel2:#222b34; --line:#2c3742;
@@ -324,7 +328,16 @@ function renderTabs(){
 function renderModes(){
   document.querySelectorAll(".mode").forEach(m=>{
     m.classList.toggle("active", m.dataset.mode===state.mode);
-    m.onclick=()=>{ state.mode=m.dataset.mode; renderAll(); };
+    m.onclick=()=>{
+      const prev=state.mode; state.mode=m.dataset.mode;
+      // entering browse: seed it from the current quiz situation so it shows the
+      // matching chart (concrete picks carried over; "__all" -> default first)
+      if(state.mode==="browse" && prev!=="browse"){
+        state.bHero = state.hero==="__all" ? null : state.hero;
+        state.bVillain = state.villain==="__all" ? null : state.villain;
+      }
+      renderAll();
+    };
   });
 }
 function renderFilters(){
