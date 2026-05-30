@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Preflop Charts Trainer</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a2027; --panel2:#222b34; --line:#2c3742;
+    --txt:#e6edf3; --dim:#8b98a5; --accent:#f5d442;
+    --value:#e8453c; --bluff:#3d6fd6; --call:#3fae5a; --fold:#5b6672;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  body{max-width:780px;margin:0 auto;padding:14px 14px 60px}
+  h1{font-size:18px;margin:4px 0 12px;letter-spacing:.3px}
+  h1 span{color:var(--accent)}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .tabs{display:flex;gap:6px;margin-bottom:10px}
+  .tab{flex:1;padding:10px 6px;text-align:center;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;cursor:pointer;font-weight:600;
+    font-size:13px;color:var(--dim);transition:.12s}
+  .tab.active{background:var(--panel2);color:var(--txt);border-color:var(--accent)}
+  .modes{display:flex;gap:6px;margin-bottom:12px}
+  .mode{padding:6px 14px;background:transparent;border:1px solid var(--line);
+    border-radius:20px;cursor:pointer;font-size:12px;color:var(--dim)}
+  .mode.active{background:var(--accent);color:#1a1a1a;border-color:var(--accent);font-weight:600}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  select{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    border-radius:8px;padding:7px 9px;font-size:13px}
+  label.chk{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--dim);cursor:pointer}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .ctx{font-size:13px;color:var(--dim);text-align:center;margin-bottom:6px}
+  .ctx b{color:var(--txt)}
+  .hand{font-size:64px;font-weight:800;text-align:center;letter-spacing:2px;margin:10px 0 4px;
+    font-variant-numeric:tabular-nums}
+  .cards{display:flex;justify-content:center;align-items:center;margin:14px 0 6px;min-height:128px}
+  .pcard{width:88px;height:124px;background:linear-gradient(#fff,#f3f4f6);border-radius:10px;
+    position:relative;border:1px solid #c7ccd1;box-shadow:0 8px 20px rgba(0,0,0,.5);color:#15202b}
+  .pcard.red{color:#d62b3f}
+  .pcard:first-child{transform:rotate(-8deg);margin-right:-14px;z-index:1}
+  .pcard:last-child{transform:rotate(8deg);margin-left:-14px;z-index:2}
+  .pcard .corner{position:absolute;display:flex;flex-direction:column;align-items:center;
+    line-height:.95;font-weight:800}
+  .pcard .corner .r{font-size:21px;letter-spacing:-1px}
+  .pcard .corner .s{font-size:15px}
+  .pcard .corner.tl{top:7px;left:8px}
+  .pcard .corner.br{bottom:7px;right:8px;transform:rotate(180deg)}
+  .pcard .pip{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:46px}
+  .handtag{text-align:center;font-size:12px;color:var(--dim);margin-bottom:18px;text-transform:uppercase;
+    letter-spacing:1px}
+  /* poker table diagram */
+  .ptable{position:relative;width:340px;height:172px;margin:2px auto 6px}
+  .ptable .felt{position:absolute;inset:20px 6px;border-radius:50%;
+    background:radial-gradient(ellipse at 50% 40%,#247a4d,#15512f);
+    border:3px solid #0c3a20;box-shadow:inset 0 0 26px rgba(0,0,0,.45)}
+  .ptable .btn{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    color:#bfe6cf;font-size:10px;letter-spacing:1px;text-align:center;line-height:1.4}
+  .seat{position:absolute;transform:translate(-50%,-50%);background:var(--panel2);
+    border:1px solid var(--line);color:var(--dim);font-size:11px;font-weight:700;
+    padding:4px 7px;border-radius:8px;white-space:nowrap}
+  .seat.hero{background:var(--accent);color:#1a1a1a;border-color:var(--accent);
+    box-shadow:0 0 0 4px rgba(245,212,66,.25)}
+  .seat.villain{background:rgba(232,69,60,.92);color:#fff;border-color:#ff7b72;
+    box-shadow:0 0 0 4px rgba(232,69,60,.22)}
+  .seat .who{display:block;font-size:8px;font-weight:800;letter-spacing:1px;opacity:.85}
+  .seat.dim{opacity:.42}
+  .seat.folded{opacity:.32;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.45)}
+  .seat.live{border-color:#4f8bf0;color:var(--txt);box-shadow:0 0 0 3px rgba(79,139,240,.18)}
+  .seat.live .who{color:#79a8f5}
+  .spot{text-align:center;font-size:13px;color:var(--dim);margin:2px 0 4px}
+  .spot b{color:var(--txt)} .spot .me{color:var(--accent)} .spot .vs{color:#ff7b72}
+  .answers{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .answers.one{grid-template-columns:1fr 1fr}
+  .ans{padding:15px 10px;border:2px solid var(--line);border-radius:10px;background:var(--panel2);
+    color:var(--txt);font-size:15px;font-weight:600;cursor:pointer;text-align:center;transition:.1s;
+    position:relative}
+  .ans .k{position:absolute;left:8px;top:6px;font-size:10px;color:var(--dim);font-weight:700}
+  .ans:hover{border-color:var(--dim)}
+  .ans .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:middle}
+  .ans.correct{border-color:var(--call);background:rgba(63,174,90,.18)}
+  .ans.wrong{border-color:var(--value);background:rgba(232,69,60,.18)}
+  .ans.reveal{border-color:var(--call)}
+  .ans:disabled{cursor:default}
+  .feedback{text-align:center;margin-top:16px;min-height:26px;font-size:15px;font-weight:600}
+  .feedback.ok{color:var(--call)} .feedback.no{color:var(--value)}
+  .feedback small{display:block;color:var(--dim);font-weight:400;font-size:12px;margin-top:3px}
+  .next{margin-top:14px;width:100%;padding:13px;border:none;border-radius:10px;background:var(--accent);
+    color:#1a1a1a;font-weight:700;font-size:15px;cursor:pointer}
+  .scorebar{display:flex;justify-content:space-between;margin-top:14px;font-size:12px;color:var(--dim)}
+  .scorebar b{color:var(--txt);font-size:14px}
+  /* grid */
+  .gridwrap{overflow-x:auto}
+  table.grid{border-collapse:separate;border-spacing:2px;margin:0 auto}
+  table.grid td{width:30px;height:30px;text-align:center;font-size:10px;font-weight:600;
+    border-radius:4px;color:#fff;cursor:default;font-variant-numeric:tabular-nums}
+  td.value{background:var(--value)} td.bluff{background:var(--bluff)}
+  td.call{background:var(--call)} td.fold{background:#39424d;color:#8b98a5}
+  td.hl{outline:3px solid var(--accent);outline-offset:-1px}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:14px}
+  .lg{display:flex;align-items:center;gap:6px;font-size:12px;background:var(--panel2);
+    padding:5px 10px;border-radius:8px}
+  .lg .sw{width:12px;height:12px;border-radius:3px}
+  /* stats */
+  .statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+  .stat{background:var(--panel2);border-radius:10px;padding:14px;text-align:center}
+  .stat .v{font-size:24px;font-weight:800} .stat .l{font-size:11px;color:var(--dim);margin-top:3px}
+  .weaklist{margin-top:6px}
+  .weakrow{display:flex;justify-content:space-between;padding:9px 12px;background:var(--panel2);
+    border-radius:8px;margin-bottom:6px;font-size:13px}
+  .weakrow .pct{color:var(--value);font-weight:700}
+  .btn-sm{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:8px;
+    padding:7px 12px;font-size:12px;cursor:pointer}
+  .muted{color:var(--dim);font-size:12px;text-align:center;margin-top:20px;line-height:1.5}
+  .muted a{color:var(--accent);text-decoration:none}
+  .muted a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<h1><span>♠</span> Preflop Charts Trainer</h1>
+
+<div class="tabs" id="tabs"></div>
+<div class="modes" id="modes">
+  <div class="mode active" data-mode="quiz">퀴즈</div>
+  <div class="mode" data-mode="browse">차트 열람</div>
+  <div class="mode" data-mode="stats">통계</div>
+</div>
+<div class="filters" id="filters"></div>
+
+<div id="view"></div>
+
+<div class="muted" id="footnote"></div>
+
+<script>
+const DATA = {{CHARTS_JSON}};
+const SITS = DATA.situations;
+const TAB_LABEL = {rfi:"RFI", facing:"Facing RFI", vs3bet:"RFI vs 3bet"};
+const TAB_ORDER = ["rfi","facing","vs3bet"];
+const POS_ORDER = ["UTG","UTG+1","UTG+2","LJ","HJ","CO","BTN","SB","BB"];
+
+function actCat(a){
+  if(a==="fold") return "fold";
+  if(a.includes("bluff")) return "bluff";
+  if(a==="call"||a==="limp") return "call";
+  return "value"; // raise, *_value
+}
+function posIdx(p){ // sort heroes/villains; compound labels sort by first token
+  const t=(p||"").split("/")[0]; const i=POS_ORDER.indexOf(t); return i<0?99:i;
+}
+
+// ---- card rendering ----
+const SUITS={s:{c:"♠",red:false},h:{c:"♥",red:true},
+            d:{c:"♦",red:true},c:{c:"♣",red:false}};
+const rnd=n=>Math.floor(Math.random()*n);
+function cardsFor(hand){ // assign representative suits to a chart hand (rank-only)
+  const r1=hand[0], r2=hand[1];
+  const suited=hand.endsWith("s");
+  const blacks=["s","c"], reds=["h","d"];
+  let s1,s2;
+  if(suited){ s1=s2=Math.random()<0.5?"s":"h"; }        // same suit
+  else { // offsuit & pairs -> contrasting black + red suits
+    s1=blacks[rnd(2)]; s2=reds[rnd(2)];
+    if(Math.random()<0.5){ const t=s1; s1=s2; s2=t; }    // vary which side is red
+  }
+  return [{rank:r1,suit:s1},{rank:r2,suit:s2}];
+}
+function cardHtml(card){
+  const s=SUITS[card.suit]; const rank=card.rank==="T"?"10":card.rank;
+  const corner=`<div class="corner %POS%"><span class="r">${rank}</span><span class="s">${s.c}</span></div>`;
+  return `<div class="pcard ${s.red?"red":""}">
+    ${corner.replace("%POS%","tl")}<div class="pip">${s.c}</div>${corner.replace("%POS%","br")}</div>`;
+}
+function cardsHtml(cards){ return `<div class="cards">${cards.map(cardHtml).join("")}</div>`; }
+
+// ---- poker table diagram ----
+const TABLE_SEATS=["UTG","UTG+1","UTG+2","LJ","HJ","CO","BTN","SB","BB"];
+function tableHtml(s){
+  const heroes=[s.hero];
+  const vills=(s.villain||"").split("/").filter(Boolean);
+  const heroIdx=TABLE_SEATS.indexOf(s.hero);
+  const cx=170, cy=86, ax=150, ay=66;
+  let html=`<div class="ptable"><div class="felt"></div><div class="btn">9-MAX</div>`;
+  TABLE_SEATS.forEach((p,i)=>{
+    const ang=(-90 + i*(360/TABLE_SEATS.length))*Math.PI/180;
+    const x=cx+ax*Math.cos(ang), y=cy+ay*Math.sin(ang);
+    let cls="seat", who="";
+    if(heroes.includes(p)){ cls+=" hero"; who='<span class="who">내 자리</span>'; }
+    else if(vills.includes(p)){ cls+=" villain"; who='<span class="who">상대</span>'; }
+    else if(s.tab==="rfi" && i<heroIdx){ cls+=" folded"; }       // acted before me -> folded
+    else if(s.tab==="rfi"){ cls+=" live"; who='<span class="who">대기</span>'; } // yet to act
+    else cls+=" dim";
+    html+=`<div class="${cls}" style="left:${x}px;top:${y}px">${who}${p}</div>`;
+  });
+  return html+"</div>";
+}
+function spotCaption(s){
+  const me=`<span class="me">${s.hero}</span>`;
+  const vs=`<span class="vs">${s.villain}</span>`;
+  if(s.tab==="rfi")
+    return `내 자리 ${me} · 앞이 모두 폴드, 첫 액션(오픈)`;
+  if(s.actionSet==="sb_limp_vs_bb")
+    return `내 자리 ${me} 림프 · ${vs} 의 레이즈에 대응`;
+  if(s.tab==="facing")
+    return `내 자리 ${me} · ${vs} 의 오픈에 대응`;
+  return `내 자리 ${me} 오픈 · ${vs} 의 3벳에 대응`;
+}
+
+// ---- state ----
+const state = {
+  tab:"rfi", mode:"quiz",
+  hero:"__all", villain:"__all", weak:false,
+  cur:null, answered:false,
+  session:{correct:0,total:0,streak:0,best:0},
+  browseSit:null,
+};
+const KEY="pokerTrainer.progress.v1";
+let progress = JSON.parse(localStorage.getItem(KEY)||"{}");
+function saveProgress(){ localStorage.setItem(KEY, JSON.stringify(progress)); }
+function sitKey(s){ return s.tab+"|"+s.hero+"|"+(s.villain||""); }
+function cellKey(s,hand){ return sitKey(s)+"|"+hand; }
+
+// ---- derived helpers ----
+function sitsFor(tab){ return SITS.filter(s=>s.tab===tab); }
+function heroesFor(tab){
+  const set=[...new Set(sitsFor(tab).map(s=>s.hero))];
+  return set.sort((a,b)=>posIdx(a)-posIdx(b));
+}
+function villainsFor(tab,hero){
+  let l=sitsFor(tab).filter(s=>hero==="__all"||s.hero===hero).map(s=>s.villain).filter(Boolean);
+  return [...new Set(l)].sort((a,b)=>posIdx(a)-posIdx(b));
+}
+function filteredSits(){
+  return sitsFor(state.tab).filter(s=>
+    (state.hero==="__all"||s.hero===state.hero) &&
+    (state.villain==="__all"||(s.villain||"")===state.villain));
+}
+
+// ---- weighted question picking (SRS) ----
+function handWeight(s,hand){
+  const p=progress[cellKey(s,hand)];
+  if(!p||!p.s) return 3;            // never seen
+  if(p.w) return 6;                 // last answer wrong
+  const streak=p.streak||0;
+  return Math.max(1, 3-streak);     // mastered -> rarely
+}
+function pickQuestion(){
+  let sits=filteredSits();
+  if(state.weak){
+    const weakSits=sits.filter(s=>DATA.hands.some(h=>{
+      const p=progress[cellKey(s,h)]; return !p||!p.s||p.w||(p.c/p.s)<0.75;
+    }));
+    if(weakSits.length) sits=weakSits;
+  }
+  if(!sits.length) return null;
+  const s=sits[Math.floor(Math.random()*sits.length)];
+  // weighted hand pick within situation
+  let hands=DATA.hands;
+  if(state.weak){
+    const w=hands.filter(h=>{const p=progress[cellKey(s,h)];return !p||!p.s||p.w||(p.c/p.s)<0.75;});
+    if(w.length) hands=w;
+  }
+  const weights=hands.map(h=>handWeight(s,h));
+  let tot=weights.reduce((a,b)=>a+b,0), r=Math.random()*tot, hand=hands[0];
+  for(let i=0;i<hands.length;i++){ r-=weights[i]; if(r<=0){hand=hands[i];break;} }
+  return {s, hand};
+}
+
+// ---- rendering ----
+const $view=document.getElementById("view");
+function renderTabs(){
+  const el=document.getElementById("tabs"); el.innerHTML="";
+  TAB_ORDER.forEach(t=>{
+    const d=document.createElement("div");
+    d.className="tab"+(t===state.tab?" active":"");
+    d.textContent=TAB_LABEL[t];
+    d.onclick=()=>{ state.tab=t; state.hero="__all"; state.villain="__all";
+      state.cur=null; state.browseSit=null; renderAll(); };
+    el.appendChild(d);
+  });
+}
+function renderModes(){
+  document.querySelectorAll(".mode").forEach(m=>{
+    m.classList.toggle("active", m.dataset.mode===state.mode);
+    m.onclick=()=>{ state.mode=m.dataset.mode; renderAll(); };
+  });
+}
+function renderFilters(){
+  const el=document.getElementById("filters"); el.innerHTML="";
+  if(state.mode==="stats"){ return; }
+  const hSel=document.createElement("select");
+  const addOpt=(sel,val,txt)=>{const o=document.createElement("option");o.value=val;o.textContent=txt;sel.appendChild(o);};
+  if(state.mode==="quiz") addOpt(hSel,"__all","모든 포지션");
+  heroesFor(state.tab).forEach(h=>addOpt(hSel,h,state.tab==="rfi"?h:h+" (hero)"));
+  if(state.mode==="browse" && state.hero==="__all") state.hero=heroesFor(state.tab)[0];
+  hSel.value=state.hero;
+  hSel.onchange=()=>{ state.hero=hSel.value; state.villain="__all"; state.cur=null; state.browseSit=null; renderAll(); };
+  el.appendChild(hSel);
+
+  if(state.tab!=="rfi"){
+    const vSel=document.createElement("select");
+    if(state.mode==="quiz") addOpt(vSel,"__all","모든 상대");
+    const vs=villainsFor(state.tab,state.hero);
+    vs.forEach(v=>addOpt(vSel,v,"vs "+v));
+    if(state.mode==="browse" && (state.villain==="__all"||!vs.includes(state.villain))) state.villain=vs[0];
+    vSel.value=state.villain;
+    vSel.onchange=()=>{ state.villain=vSel.value; state.cur=null; state.browseSit=null; renderAll(); };
+    el.appendChild(vSel);
+  }
+  if(state.mode==="quiz"){
+    const lab=document.createElement("label"); lab.className="chk";
+    const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=state.weak;
+    cb.onchange=()=>{ state.weak=cb.checked; state.cur=null; renderAll(); };
+    lab.appendChild(cb); lab.appendChild(document.createTextNode("약점 집중"));
+    el.appendChild(lab);
+  }
+}
+
+function handTag(hand){
+  if(hand.length===2) return "포켓 페어";
+  return hand.endsWith("s")?"수딧(suited)":"오프수딧(offsuit)";
+}
+function renderQuiz(){
+  if(!state.cur){ state.cur=pickQuestion(); state.answered=false; }
+  if(!state.cur){ $view.innerHTML='<div class="card"><div class="ctx">이 필터에 해당하는 차트가 없습니다.</div></div>'; return; }
+  const {s,hand}=state.cur;
+  if(!state.cur.cards) state.cur.cards=cardsFor(hand);
+  const acts=DATA.actionSets[s.actionSet];
+  const correct=s.hands[hand];
+  let html=`<div class="card">
+    <div class="ctx" style="margin-bottom:8px">${TAB_LABEL[s.tab]}</div>
+    ${tableHtml(s)}
+    <div class="spot">${spotCaption(s)}</div>
+    ${cardsHtml(state.cur.cards)}
+    <div class="handtag">${handTag(hand)}</div>
+    <div class="answers ${acts.length<=2?'one':''}" id="answers"></div>
+    <div class="feedback" id="fb"></div>`;
+  html+=`<div class="scorebar"><span>이번 세션 <b>${state.session.correct}/${state.session.total}</b></span>
+    <span>연속 정답 <b>${state.session.streak}</b> · 최고 <b>${state.session.best}</b></span></div></div>`;
+  $view.innerHTML=html;
+  const ansEl=document.getElementById("answers");
+  acts.forEach((a,i)=>{
+    const b=document.createElement("button");
+    b.className="ans"; b.dataset.act=a;
+    b.innerHTML=`<span class="k">${i+1}</span><span class="dot" style="background:var(--${actCat(a)})"></span>${DATA.actionLabels[a]}`;
+    b.onclick=()=>answer(a);
+    ansEl.appendChild(b);
+  });
+  if(state.answered) showResult();
+}
+function answer(a){
+  if(state.answered) return;
+  state.answered=true;
+  const {s,hand}=state.cur; const correct=s.hands[hand];
+  const ok=a===correct;
+  // record
+  const k=cellKey(s,hand); const p=progress[k]||{s:0,c:0,streak:0,w:0};
+  p.s++; if(ok){p.c++;p.streak=(p.streak||0)+1;p.w=0;} else {p.streak=0;p.w=1;}
+  progress[k]=p; saveProgress();
+  state.session.total++; if(ok){state.session.correct++;state.session.streak++;
+    state.session.best=Math.max(state.session.best,state.session.streak);} else state.session.streak=0;
+  state.chosen=a;
+  showResult();
+}
+function showResult(){
+  const {s,hand}=state.cur; const correct=s.hands[hand]; const chosen=state.chosen;
+  document.querySelectorAll(".ans").forEach(b=>{
+    b.disabled=true;
+    const a=b.dataset.act;
+    if(a===correct) b.classList.add(chosen===correct?"correct":"reveal");
+    if(a===chosen && chosen!==correct) b.classList.add("wrong");
+  });
+  const fb=document.getElementById("fb");
+  if(chosen===correct){ fb.className="feedback ok"; fb.innerHTML=`정답! ✓`; }
+  else { fb.className="feedback no";
+    fb.innerHTML=`오답 ✗ <small>정답: ${DATA.actionLabels[correct]}</small>`; }
+  const card=$view.querySelector(".card");
+  const nx=document.createElement("button"); nx.className="next"; nx.textContent="다음 (Space)";
+  nx.onclick=nextQuestion; card.appendChild(nx);
+}
+function nextQuestion(){ state.cur=null; state.chosen=null; state.answered=false; renderQuiz(); }
+
+function gridTable(s, hlHand){
+  const R=DATA.ranks;
+  let h='<div class="gridwrap"><table class="grid">';
+  for(let i=0;i<13;i++){ h+="<tr>";
+    for(let j=0;j<13;j++){
+      const hand = i===j?R[i]+R[i] : i<j?R[i]+R[j]+"s" : R[j]+R[i]+"o";
+      const a=s.hands[hand]; const cat=actCat(a);
+      const hl = hand===hlHand?" hl":"";
+      h+=`<td class="${cat}${hl}" title="${hand}: ${DATA.actionLabels[a]}">${hand}</td>`;
+    }
+    h+="</tr>";
+  }
+  h+="</table></div>";
+  return h;
+}
+function legendFor(s){
+  const acts=DATA.actionSets[s.actionSet];
+  let h='<div class="legend">';
+  acts.forEach(a=>{
+    const c=s.comboCounts[a]; const pct=(c/1326*100).toFixed(1);
+    h+=`<div class="lg"><span class="sw" style="background:var(--${actCat(a)})"></span>
+      ${DATA.actionLabels[a]} <b style="margin-left:4px">${pct}%</b>
+      <span style="color:var(--dim)">(${c})</span></div>`;
+  });
+  return h+"</div>";
+}
+function renderBrowse(){
+  const s=filteredSits().find(x=>x.hero===state.hero && (x.villain||"")===(state.tab==="rfi"?"":state.villain))
+        || filteredSits()[0];
+  if(!s){ $view.innerHTML='<div class="card"><div class="ctx">차트 없음</div></div>'; return; }
+  const ctx = s.tab==="rfi" ? `<b>${TAB_LABEL[s.tab]}</b> · <b>${s.hero}</b>` : `<b>${TAB_LABEL[s.tab]}</b> · <b>${s.label}</b>`;
+  $view.innerHTML=`<div class="card"><div class="ctx" style="margin-bottom:14px">${ctx}</div>
+    ${gridTable(s,null)}${legendFor(s)}</div>`;
+}
+
+function renderStats(){
+  let seen=0,correct=0;
+  const perSit={};
+  SITS.forEach(s=>{ perSit[sitKey(s)]={label:s.label,tab:s.tab,s:0,c:0}; });
+  for(const k in progress){
+    const p=progress[k]; const sk=k.split("|").slice(0,3).join("|");
+    seen+=p.s; correct+=p.c;
+    if(perSit[sk]){ perSit[sk].s+=p.s; perSit[sk].c+=p.c; }
+  }
+  const acc=seen?Math.round(correct/seen*100):0;
+  const distinct=Object.keys(progress).length;
+  let html=`<div class="card">
+    <div class="statgrid">
+      <div class="stat"><div class="v">${acc}%</div><div class="l">전체 정답률</div></div>
+      <div class="stat"><div class="v">${seen}</div><div class="l">총 시도</div></div>
+      <div class="stat"><div class="v">${distinct}/${SITS.length*169}</div><div class="l">학습한 핸드</div></div>
+    </div>`;
+  const weak=Object.values(perSit).filter(x=>x.s>=4).map(x=>({...x,acc:x.c/x.s}))
+    .sort((a,b)=>a.acc-b.acc).slice(0,8);
+  if(weak.length){
+    html+=`<div class="ctx" style="text-align:left;margin:6px 0 8px">약점 스팟 (정답률 낮은 순)</div><div class="weaklist">`;
+    weak.forEach(w=>{ html+=`<div class="weakrow"><span>${TAB_LABEL[w.tab]} · ${w.label}</span>
+      <span class="pct">${Math.round(w.acc*100)}% <span style="color:var(--dim)">(${w.c}/${w.s})</span></span></div>`; });
+    html+=`</div>`;
+  } else {
+    html+=`<div class="ctx" style="margin:14px 0">아직 데이터가 부족합니다. 퀴즈를 풀어보세요.</div>`;
+  }
+  html+=`<button class="btn-sm" id="reset" style="margin-top:14px">통계 초기화</button></div>`;
+  $view.innerHTML=html;
+  document.getElementById("reset").onclick=()=>{
+    if(confirm("모든 학습 기록을 삭제할까요?")){ progress={}; saveProgress(); renderStats(); }
+  };
+}
+
+function renderFootnote(){
+  const url="https://poker-coaching.s3.amazonaws.com/tools/preflop-charts/full-preflop-charts.pdf";
+  document.getElementById("footnote").innerHTML =
+    DATA.meta.assumptions +
+    '<br>출처: <a href="'+url+'" target="_blank" rel="noopener">'+DATA.meta.source+'</a>';
+}
+function renderAll(){
+  renderTabs(); renderModes(); renderFilters();
+  if(state.mode==="quiz") renderQuiz();
+  else if(state.mode==="browse") renderBrowse();
+  else renderStats();
+  renderFootnote();
+}
+
+// keyboard
+document.addEventListener("keydown",e=>{
+  if(state.mode!=="quiz") return;
+  if(e.key===" "){ e.preventDefault();
+    if(state.answered) nextQuestion(); return; }
+  if(!state.answered && state.cur){
+    const acts=DATA.actionSets[state.cur.s.actionSet];
+    const n=parseInt(e.key); if(n>=1&&n<=acts.length) answer(acts[n-1]);
+  }
+});
+
+renderAll();
+</script>
+</body>
+</html>
