@@ -11,6 +11,8 @@ HERE = os.path.dirname(__file__)
 TEMPLATE = os.path.join(HERE, "..", "template", "poker-trainer.template.html")
 DATA = os.path.join(HERE, "..", "data", "charts.json")
 OUT = os.path.join(HERE, "..", "dist", "poker-trainer.html")
+# also written to the repo root so GitHub Pages serves it at the site root URL
+OUT_INDEX = os.path.join(HERE, "..", "index.html")
 
 
 def main():
@@ -22,10 +24,12 @@ def main():
     blob = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     html = html.replace("{{CHARTS_JSON}}", blob)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "w") as f:
-        f.write(html)
+    for path in (OUT, OUT_INDEX):
+        with open(path, "w") as f:
+            f.write(html)
     kb = os.path.getsize(OUT) / 1024
-    print(f"wrote {os.path.relpath(OUT)} ({kb:.0f} KB, {len(data['situations'])} charts)")
+    print(f"wrote {os.path.relpath(OUT)} + {os.path.relpath(OUT_INDEX)} "
+          f"({kb:.0f} KB, {len(data['situations'])} charts)")
 
 
 if __name__ == "__main__":
