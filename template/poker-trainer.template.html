@@ -117,6 +117,35 @@
   .muted{color:var(--dim);font-size:12px;text-align:center;margin-top:20px;line-height:1.5}
   .muted a{color:var(--accent);text-decoration:none}
   .muted a:hover{text-decoration:underline}
+  /* ---- mobile: fit a quiz on one screen, no scroll ---- */
+  @media (max-width:640px){
+    body{padding:8px 10px 24px}
+    h1{font-size:15px;margin:2px 0 8px}
+    .tabs{gap:5px;margin-bottom:7px}
+    .tab{padding:8px 4px;font-size:12px;border-radius:9px}
+    .modes{gap:5px;margin-bottom:7px}
+    .mode{padding:5px 12px;font-size:12px}
+    .filters{gap:7px;margin-bottom:8px}
+    select{padding:6px 8px;font-size:12px}
+    .card{padding:12px 12px 14px;border-radius:12px}
+    .ctx{margin-bottom:2px}
+    .ptable{transform:scale(.78);transform-origin:top center;margin-bottom:-36px}
+    .spot{font-size:12px;margin:0 0 2px}
+    .cards{margin:6px 0 4px;min-height:112px}
+    .pcard{width:70px;height:99px;border-radius:8px}
+    .pcard .pip{font-size:36px}
+    .pcard .corner .r{font-size:17px}
+    .pcard .corner .s{font-size:12px}
+    .handtag{margin-bottom:10px;font-size:11px}
+    .answers{gap:8px}
+    .ans{padding:12px 8px;font-size:14px}
+    .ans .dot{width:8px;height:8px;margin-right:5px}
+    .scorebar{margin-top:10px;font-size:11px}
+    .next{padding:11px;font-size:14px}
+    .muted{margin-top:12px;font-size:11px}
+    .gridwrap{margin:0 -4px}
+    table.grid td{width:24px;height:24px;font-size:9px}
+  }
 </style>
 </head>
 <body>
