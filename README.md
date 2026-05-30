@@ -1,6 +1,6 @@
 # Preflop Charts Trainer
 
-A flashcard trainer for memorising the **PokerCoaching full preflop charts**
+A flashcard trainer for memorising the **[PokerCoaching full preflop charts](https://github.com/dongjoocha/poker-preflop-trainer)**
 (RFI / Facing RFI / RFI vs 3-bet). Pick a tab, get dealt a random
 position + hand, and answer with the correct action — value 3-bet vs bluff
 3-bet vs call vs fold, etc. Tracks weak spots and drills them harder.
