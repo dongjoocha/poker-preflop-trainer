@@ -251,10 +251,10 @@ function spotCaption(s){
 // ---- state ----
 const state = {
   tab:"rfi", mode:"quiz",
-  hero:"__all", villain:"__all", weak:false,
+  hero:"__all", villain:"__all", weak:false,   // quiz filter (independent of browse)
+  bHero:null, bVillain:null,                   // browse filter (concrete; null -> default)
   cur:null, answered:false,
   session:{correct:0,total:0,streak:0,best:0},
-  browseSit:null,
 };
 const KEY="pokerTrainer.progress.v1";
 let progress = JSON.parse(localStorage.getItem(KEY)||"{}");
@@ -317,7 +317,7 @@ function renderTabs(){
     d.className="tab"+(t===state.tab?" active":"");
     d.textContent=TAB_LABEL[t];
     d.onclick=()=>{ state.tab=t; state.hero="__all"; state.villain="__all";
-      state.cur=null; state.browseSit=null; renderAll(); };
+      state.bHero=null; state.bVillain=null; state.cur=null; renderAll(); };
     el.appendChild(d);
   });
 }
@@ -330,26 +330,42 @@ function renderModes(){
 function renderFilters(){
   const el=document.getElementById("filters"); el.innerHTML="";
   if(state.mode==="stats"){ return; }
-  const hSel=document.createElement("select");
+  const browse = state.mode==="browse";
   const addOpt=(sel,val,txt)=>{const o=document.createElement("option");o.value=val;o.textContent=txt;sel.appendChild(o);};
-  if(state.mode==="quiz") addOpt(hSel,"__all","모든 포지션");
-  heroesFor(state.tab).forEach(h=>addOpt(hSel,h,state.tab==="rfi"?h:h+" (hero)"));
-  if(state.mode==="browse" && state.hero==="__all") state.hero=heroesFor(state.tab)[0];
-  hSel.value=state.hero;
-  hSel.onchange=()=>{ state.hero=hSel.value; state.villain="__all"; state.cur=null; state.browseSit=null; renderAll(); };
+
+  // hero select — quiz uses state.hero (allows "__all"); browse uses state.bHero (concrete)
+  const heroes=heroesFor(state.tab);
+  let hero = browse ? state.bHero : state.hero;
+  if(browse){ if(!heroes.includes(hero)) hero=heroes[0]; state.bHero=hero; }
+  else if(hero!=="__all" && !heroes.includes(hero)) hero="__all";
+  const hSel=document.createElement("select");
+  if(!browse) addOpt(hSel,"__all","모든 포지션");
+  heroes.forEach(h=>addOpt(hSel,h,state.tab==="rfi"?h:h+" (hero)"));
+  hSel.value=hero;
+  hSel.onchange=()=>{
+    if(browse){ state.bHero=hSel.value; state.bVillain=null; }
+    else { state.hero=hSel.value; state.villain="__all"; state.cur=null; }
+    renderAll();
+  };
   el.appendChild(hSel);
 
   if(state.tab!=="rfi"){
+    const vs=villainsFor(state.tab, hero);
+    let vill = browse ? state.bVillain : state.villain;
+    if(browse){ if(!vs.includes(vill)) vill=vs[0]; state.bVillain=vill; }
+    else if(vill!=="__all" && !vs.includes(vill)) vill="__all";
     const vSel=document.createElement("select");
-    if(state.mode==="quiz") addOpt(vSel,"__all","모든 상대");
-    const vs=villainsFor(state.tab,state.hero);
+    if(!browse) addOpt(vSel,"__all","모든 상대");
     vs.forEach(v=>addOpt(vSel,v,"vs "+v));
-    if(state.mode==="browse" && (state.villain==="__all"||!vs.includes(state.villain))) state.villain=vs[0];
-    vSel.value=state.villain;
-    vSel.onchange=()=>{ state.villain=vSel.value; state.cur=null; state.browseSit=null; renderAll(); };
+    vSel.value=vill;
+    vSel.onchange=()=>{
+      if(browse) state.bVillain=vSel.value;
+      else { state.villain=vSel.value; state.cur=null; }
+      renderAll();
+    };
     el.appendChild(vSel);
   }
-  if(state.mode==="quiz"){
+  if(!browse){
     const lab=document.createElement("label"); lab.className="chk";
     const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=state.weak;
     cb.onchange=()=>{ state.weak=cb.checked; state.cur=null; renderAll(); };
@@ -449,8 +465,9 @@ function legendFor(s){
   return h+"</div>";
 }
 function renderBrowse(){
-  const s=filteredSits().find(x=>x.hero===state.hero && (x.villain||"")===(state.tab==="rfi"?"":state.villain))
-        || filteredSits()[0];
+  const vil = state.tab==="rfi" ? "" : state.bVillain;
+  const s=sitsFor(state.tab).find(x=>x.hero===state.bHero && (x.villain||"")===vil)
+        || sitsFor(state.tab)[0];
   if(!s){ $view.innerHTML='<div class="card"><div class="ctx">차트 없음</div></div>'; return; }
   const ctx = s.tab==="rfi" ? `<b>${TAB_LABEL[s.tab]}</b> · <b>${s.hero}</b>` : `<b>${TAB_LABEL[s.tab]}</b> · <b>${s.label}</b>`;
   $view.innerHTML=`<div class="card"><div class="ctx" style="margin-bottom:14px">${ctx}</div>
