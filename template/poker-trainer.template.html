@@ -330,11 +330,13 @@ function renderModes(){
     m.classList.toggle("active", m.dataset.mode===state.mode);
     m.onclick=()=>{
       const prev=state.mode; state.mode=m.dataset.mode;
-      // entering browse: seed it from the current quiz situation so it shows the
-      // matching chart (concrete picks carried over; "__all" -> default first)
-      if(state.mode==="browse" && prev!=="browse"){
-        state.bHero = state.hero==="__all" ? null : state.hero;
-        state.bVillain = state.villain==="__all" ? null : state.villain;
+      // entering browse from quiz: open the chart for the question on screen
+      // (state.cur.s) — this is the "current quiz situation" even when the quiz
+      // filter is "모든 포지션". Fall back to the filter, then to the default.
+      if(state.mode==="browse" && prev==="quiz"){
+        if(state.cur){ state.bHero=state.cur.s.hero; state.bVillain=state.cur.s.villain; }
+        else { state.bHero = state.hero==="__all" ? null : state.hero;
+               state.bVillain = state.villain==="__all" ? null : state.villain; }
       }
       renderAll();
     };
