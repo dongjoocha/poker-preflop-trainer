@@ -222,10 +222,11 @@ function tableHtml(s){
     const x=cx+ax*Math.cos(ang), y=cy+ay*Math.sin(ang);
     if(p==="BTN"){ btnX=x; btnY=y; }
     let cls="seat", who="";
+    const seatOrder = (s.tab==="rfi" || s.tab==="facing"); // action order is meaningful
     if(heroes.includes(p)){ cls+=" hero"; who='<span class="who">내 자리</span>'; }
     else if(vills.includes(p)){ cls+=" villain"; who='<span class="who">상대</span>'; }
-    else if(s.tab==="rfi" && i<heroIdx){ cls+=" folded"; }       // acted before me -> folded
-    else if(s.tab==="rfi"){ cls+=" live"; who='<span class="who">대기</span>'; } // yet to act
+    else if(seatOrder && i<heroIdx){ cls+=" folded"; }            // acted before me -> folded
+    else if(seatOrder){ cls+=" live"; who='<span class="who">대기</span>'; } // yet to act
     else cls+=" dim";
     html+=`<div class="${cls}" style="left:${x}px;top:${y}px">${who}${p}</div>`;
   });
