@@ -13,6 +13,7 @@
     --bg:#0f1419; --panel:#1a2027; --panel2:#222b34; --line:#2c3742;
     --txt:#e6edf3; --dim:#8b98a5; --accent:#f5d442;
     --value:#e8453c; --bluff:#3d6fd6; --call:#3fae5a; --fold:#5b6672;
+    --allin:#7d1d1d;   /* dark maroon = short-stack all-in / jam */
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--txt);
@@ -83,6 +84,7 @@
   .spot b{color:var(--txt)} .spot .me{color:var(--accent)} .spot .vs{color:#ff7b72}
   .answers{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
   .answers.one{grid-template-columns:1fr 1fr}
+  .answers.three{grid-template-columns:repeat(3,1fr)}
   .ans{padding:15px 10px;border:2px solid var(--line);border-radius:10px;background:var(--panel2);
     color:var(--txt);font-size:15px;font-weight:600;cursor:pointer;text-align:center;transition:.1s;
     position:relative}
@@ -112,6 +114,24 @@
   .lg{display:flex;align-items:center;gap:6px;font-size:12px;background:var(--panel2);
     padding:5px 10px;border-radius:8px}
   .lg .sw{width:12px;height:12px;border-radius:3px}
+  td.allin{background:var(--allin)}
+  /* ---- tournament: mixed-frequency display ---- */
+  table.tgrid td{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.7)}
+  .tbars{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  .tbars-h{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+  .trow{display:flex;align-items:center;margin:6px 0;font-size:13px}
+  .tbar{flex:1;height:22px;background:var(--panel2);border-radius:5px;overflow:hidden;position:relative}
+  .tfill{height:100%}
+  .tfill.value{background:var(--value)} .tfill.call{background:var(--call)}
+  .tfill.allin{background:var(--allin)} .tfill.fold{background:var(--fold)}
+  .tlabel{position:absolute;left:9px;top:3px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  .tfreq{position:absolute;right:9px;top:3px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  .trow.best .tlabel::after{content:" ★";color:var(--accent)}
+  .tverdict{text-align:center;margin-top:14px;font-size:15px;font-weight:700;padding:8px;border-radius:8px}
+  .tverdict small{display:block;font-weight:400;font-size:12px;color:var(--dim);margin-top:3px}
+  .tverdict.good{color:var(--call);background:rgba(63,174,90,.12)}
+  .tverdict.ok{color:#d9a93a;background:rgba(217,169,58,.12)}
+  .tverdict.bad{color:var(--value);background:rgba(232,69,60,.12)}
   /* stats */
   .statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
   .stat{background:var(--panel2);border-radius:10px;padding:14px;text-align:center}
@@ -172,18 +192,54 @@
 <div class="muted" id="footnote"></div>
 
 <script>
-const DATA = {{CHARTS_JSON}};
-const SITS = DATA.situations;
-const TAB_LABEL = {rfi:"RFI", facing:"Facing RFI", vs3bet:"RFI vs 3bet"};
-const TAB_ORDER = ["rfi","facing","vs3bet"];
+const CASH = {{CHARTS_JSON}};
+const DATA = CASH;                 // alias: cash (100BB) dataset — original code uses DATA
+const CSITS = CASH.situations;
+const TJ = decodeTourney({{TOURNAMENT_JSON}});   // tournament charts (mixed-frequency)
+const STACKS = ["100BB", ...TJ.stacks];          // unified stack dropdown (cash + tournament)
+const T4 = ["fold","call","raise","allin"];      // tournament frequency-vector order
+const AIDX = {fold:0,call:1,raise:2,allin:3};
+const BTNORDER = {raise:0,call:1,allin:2,fold:3}; // answer-button display order
+const TAB_LABEL = {rfi:"RFI", facing:"Facing RFI", vs3bet:"RFI vs 3bet", vs4bet:"RFI vs 4bet"};
+const TAB_ORDER = ["rfi","facing","vs3bet","vs4bet"];
 const POS_ORDER = ["UTG","UTG+1","UTG+2","LJ","HJ","CO","BTN","SB","BB"];
+// tournament charts use 4 generic actions; the poker term depends on the street
+const TACT_LABEL = {
+  rfi:    {fold:"Fold", call:"Limp", raise:"Raise", allin:"All-in"},
+  facing: {fold:"Fold", call:"Call", raise:"3-Bet", allin:"All-in"},
+  vs3bet: {fold:"Fold", call:"Call", raise:"4-Bet", allin:"All-in"},
+  vs4bet: {fold:"Fold", call:"Call", raise:"5-Bet", allin:"All-in"},
+};
 
-function actCat(a){
+// Decode the compact tournament blob (palette + fixed-width base36 cell indices,
+// produced by build_html.py) into {byStack:{stack:[situation...]}}. Each decoded
+// situation mirrors the cash shape, except a hand maps to a [fold,call,raise,allin]
+// frequency vector instead of one action.
+function decodeTourney(C){
+  const R=C.ranks, w=C.w;
+  const pal=(C.pal||[]).map(p=>[...p].map(ch=>parseInt(ch,36)/20));
+  const byStack={}; (C.stacks||[]).forEach(s=>byStack[s]=[]);
+  (C.sits||[]).forEach(o=>{
+    const hands={}; let k=0;
+    for(let i=0;i<13;i++) for(let j=0;j<13;j++){
+      const hand = i===j?R[i]+R[i] : i<j?R[i]+R[j]+"s" : R[j]+R[i]+"o";
+      hands[hand]=pal[parseInt(o.c.substr(k,w),36)]; k+=w;
+    }
+    byStack[o.k].push({stack:o.k,tab:o.t,hero:o.h,villain:o.v,sc:o.g||"",label:o.l,actions:o.a,hands});
+  });
+  return {meta:C.meta, ranks:R, actions:C.actions, stacks:C.stacks||[], byStack};
+}
+
+function actCat(a){                // cash semantic action -> colour class
   if(a==="fold") return "fold";
   if(a.includes("bluff")) return "bluff";
   if(a==="call"||a==="limp") return "call";
   return "value"; // raise, *_value
 }
+function tcat(a){                  // tournament action -> colour class
+  return a==="fold"?"fold":a==="call"?"call":a==="allin"?"allin":"value";
+}
+function combos(hand){ return hand[0]===hand[1]?6:(hand.endsWith("s")?4:12); }
 function posIdx(p){ // sort heroes/villains; compound labels sort by first token
   const t=(p||"").split("/")[0]; const i=POS_ORDER.indexOf(t); return i<0?99:i;
 }
@@ -247,14 +303,18 @@ function spotCaption(s){
     return `내 자리 ${me} · 앞이 모두 폴드, 첫 액션(오픈)`;
   if(s.actionSet==="sb_limp_vs_bb")
     return `내 자리 ${me} 림프 · ${vs} 의 레이즈에 대응`;
+  const ai = s.sc && s.sc.includes("All-In") ? " 올인" : "";
   if(s.tab==="facing")
-    return `내 자리 ${me} · ${vs} 의 오픈에 대응`;
-  return `내 자리 ${me} 오픈 · ${vs} 의 3벳에 대응`;
+    return s.sc==="Limp" ? `내 자리 ${me} · ${vs} 의 림프에 대응`
+                         : `내 자리 ${me} · ${vs} 의 오픈에 대응`;
+  if(s.tab==="vs4bet")
+    return `내 자리 ${me} 의 3벳 · ${vs} 의 4벳${ai}에 대응`;
+  return `내 자리 ${me} 오픈 · ${vs} 의 3벳${ai}에 대응`;   // vs3bet
 }
 
 // ---- state ----
 const state = {
-  tab:"rfi", mode:"quiz",
+  stack:"100BB", tab:"rfi", mode:"quiz",        // 100BB = cash; others = tournament
   hero:"__all", villain:"__all", weak:false,   // quiz filter (independent of browse)
   bHero:null, bVillain:null,                   // browse filter (concrete; null -> default)
   cur:null, answered:false,
@@ -263,11 +323,31 @@ const state = {
 const KEY="pokerTrainer.progress.v1";
 let progress = JSON.parse(localStorage.getItem(KEY)||"{}");
 function saveProgress(){ localStorage.setItem(KEY, JSON.stringify(progress)); }
-function sitKey(s){ return s.tab+"|"+s.hero+"|"+(s.villain||""); }
+// cash sit has no .stack -> old key format preserved (existing localStorage stays valid).
+// tournament adds stack + scenario so distinct charts on the same matchup don't collide.
+function sitKey(s){ return (s.stack?s.stack+"|":"")+s.tab+"|"+s.hero+"|"+(s.villain||"")+(s.sc?"|"+s.sc:""); }
 function cellKey(s,hand){ return sitKey(s)+"|"+hand; }
 
 // ---- derived helpers ----
-function sitsFor(tab){ return SITS.filter(s=>s.tab===tab); }
+function isTourney(){ return state.stack!=="100BB"; }
+function curSits(){ return isTourney()?TJ.byStack[state.stack]:CSITS; }
+function allSits(){ return CSITS.concat(...TJ.stacks.map(s=>TJ.byStack[s])); }
+function tabsForStack(){ const p=new Set(curSits().map(s=>s.tab)); return TAB_ORDER.filter(t=>p.has(t)); }
+function sitsFor(tab){ return curSits().filter(s=>s.tab===tab); }
+// tournament matchup identity (villain + scenario) and its display options
+function tMatchKey(s){ return (s.villain||"")+"~"+(s.sc||""); }
+function tFullLabel(s){ return s.tab==="rfi" ? s.label : s.label+(s.sc?" · "+s.sc:""); }
+function tMatchups(tab, hero){
+  const l=sitsFor(tab).filter(s=>hero==="__all"||s.hero===hero);
+  const byVil={};                                  // scenario suffix only when ambiguous
+  l.forEach(s=>{ (byVil[s.villain]=byVil[s.villain]||new Set()).add(s.sc||""); });
+  const seen=new Set(), opts=[];
+  l.forEach(s=>{ const key=tMatchKey(s); if(seen.has(key)) return; seen.add(key);
+    const multi=(byVil[s.villain]||{}).size>1;
+    opts.push({val:key, vil:s.villain, sc:s.sc||"", label:"vs "+s.villain+(multi&&s.sc?" · "+s.sc:"")}); });
+  opts.sort((a,b)=> (posIdx(a.vil)-posIdx(b.vil)) || a.sc.localeCompare(b.sc));
+  return opts;
+}
 function heroesFor(tab){
   const set=[...new Set(sitsFor(tab).map(s=>s.hero))];
   return set.sort((a,b)=>posIdx(a)-posIdx(b));
@@ -276,10 +356,11 @@ function villainsFor(tab,hero){
   let l=sitsFor(tab).filter(s=>hero==="__all"||s.hero===hero).map(s=>s.villain).filter(Boolean);
   return [...new Set(l)].sort((a,b)=>posIdx(a)-posIdx(b));
 }
+function matchVal(s){ return isTourney()?tMatchKey(s):(s.villain||""); }
 function filteredSits(){
   return sitsFor(state.tab).filter(s=>
     (state.hero==="__all"||s.hero===state.hero) &&
-    (state.villain==="__all"||(s.villain||"")===state.villain));
+    (state.villain==="__all"||matchVal(s)===state.villain));
 }
 
 // ---- weighted question picking (SRS) ----
@@ -316,7 +397,7 @@ function pickQuestion(){
 const $view=document.getElementById("view");
 function renderTabs(){
   const el=document.getElementById("tabs"); el.innerHTML="";
-  TAB_ORDER.forEach(t=>{
+  tabsForStack().forEach(t=>{
     const d=document.createElement("div");
     d.className="tab"+(t===state.tab?" active":"");
     d.textContent=TAB_LABEL[t];
@@ -334,7 +415,7 @@ function renderModes(){
       // (state.cur.s) — this is the "current quiz situation" even when the quiz
       // filter is "모든 포지션". Fall back to the filter, then to the default.
       if(state.mode==="browse" && prev==="quiz"){
-        if(state.cur){ state.bHero=state.cur.s.hero; state.bVillain=state.cur.s.villain; }
+        if(state.cur){ state.bHero=state.cur.s.hero; state.bVillain=matchVal(state.cur.s); }
         else { state.bHero = state.hero==="__all" ? null : state.hero;
                state.bVillain = state.villain==="__all" ? null : state.villain; }
       }
@@ -347,6 +428,18 @@ function renderFilters(){
   if(state.mode==="stats"){ return; }
   const browse = state.mode==="browse";
   const addOpt=(sel,val,txt)=>{const o=document.createElement("option");o.value=val;o.textContent=txt;sel.appendChild(o);};
+
+  // stack select (unified: 100BB cash + tournament effective stacks)
+  const stSel=document.createElement("select");
+  STACKS.forEach(st=>addOpt(stSel,st, st==="100BB"?"100BB · 캐시":st+" · 토너먼트"));
+  stSel.value=state.stack;
+  stSel.onchange=()=>{
+    state.stack=stSel.value;
+    if(!tabsForStack().includes(state.tab)) state.tab="rfi";
+    state.hero="__all"; state.villain="__all"; state.bHero=null; state.bVillain=null;
+    state.cur=null; renderAll();
+  };
+  el.appendChild(stSel);
 
   // hero select — quiz uses state.hero (allows "__all"); browse uses state.bHero (concrete)
   const heroes=heroesFor(state.tab);
@@ -365,13 +458,21 @@ function renderFilters(){
   el.appendChild(hSel);
 
   if(state.tab!=="rfi"){
-    const vs=villainsFor(state.tab, hero);
-    let vill = browse ? state.bVillain : state.villain;
-    if(browse){ if(!vs.includes(vill)) vill=vs[0]; state.bVillain=vill; }
-    else if(vill!=="__all" && !vs.includes(vill)) vill="__all";
     const vSel=document.createElement("select");
-    if(!browse) addOpt(vSel,"__all","모든 상대");
-    vs.forEach(v=>addOpt(vSel,v,"vs "+v));
+    let vill = browse ? state.bVillain : state.villain;
+    if(isTourney()){                                  // matchups = villain + scenario
+      const opts=tMatchups(state.tab, hero); const vals=opts.map(o=>o.val);
+      if(browse){ if(!vals.includes(vill)) vill=vals[0]; state.bVillain=vill; }
+      else if(vill!=="__all" && !vals.includes(vill)) vill="__all";
+      if(!browse) addOpt(vSel,"__all","모든 상대");
+      opts.forEach(o=>addOpt(vSel,o.val,o.label));
+    } else {
+      const vs=villainsFor(state.tab, hero);
+      if(browse){ if(!vs.includes(vill)) vill=vs[0]; state.bVillain=vill; }
+      else if(vill!=="__all" && !vs.includes(vill)) vill="__all";
+      if(!browse) addOpt(vSel,"__all","모든 상대");
+      vs.forEach(v=>addOpt(vSel,v,"vs "+v));
+    }
     vSel.value=vill;
     vSel.onchange=()=>{
       if(browse) state.bVillain=vSel.value;
@@ -394,6 +495,7 @@ function handTag(hand){
   return hand.endsWith("s")?"수딧(suited)":"오프수딧(offsuit)";
 }
 function renderQuiz(){
+  if(isTourney()) return renderTQuiz();
   if(!state.cur){ state.cur=pickQuestion(); state.answered=false; }
   if(!state.cur){ $view.innerHTML='<div class="card"><div class="ctx">이 필터에 해당하는 차트가 없습니다.</div></div>'; return; }
   const {s,hand}=state.cur;
@@ -453,6 +555,92 @@ function showResult(){
 }
 function nextQuestion(){ state.cur=null; state.chosen=null; state.answered=false; renderQuiz(); }
 
+// ---- tournament quiz: pick an action, then see the full mixed-frequency mix ----
+// Answerable actions = every action that is the most-frequent action for at least
+// one hand (so the "correct" answer is always offered), plus any action with >=1%
+// combo-weighted presence across the chart.
+function tActs(s){
+  const tot=[0,0,0,0]; let n=0; const isBest=[false,false,false,false];
+  DATA.hands.forEach(h=>{ const v=s.hands[h], c=combos(h); n+=c;
+    isBest[bestIdx(v)]=true; for(let k=0;k<4;k++) tot[k]+=v[k]*c; });
+  const acts=[];
+  for(let k=0;k<4;k++) if(isBest[k]||tot[k]/n>=0.01) acts.push(T4[k]);
+  return acts.sort((a,b)=>BTNORDER[a]-BTNORDER[b]);
+}
+function bestIdx(vec){                 // argmax freq, ties broken raise>allin>call>fold
+  const pri=[2,3,1,0]; let bi=pri[0];
+  for(const i of pri) if(vec[i]>vec[bi]+1e-9) bi=i;
+  return bi;
+}
+function renderTQuiz(){
+  if(!state.cur){ state.cur=pickQuestion(); state.answered=false; state.chosen=null; }
+  if(!state.cur){ $view.innerHTML='<div class="card"><div class="ctx">이 필터에 해당하는 차트가 없습니다.</div></div>'; return; }
+  const {s,hand}=state.cur;
+  if(!state.cur.cards) state.cur.cards=cardsFor(hand);
+  const acts=tActs(s); const g=state.session;
+  let html=`<div class="card">
+    <div class="ctx" style="margin-bottom:8px">${state.stack} · ${TAB_LABEL[s.tab]}${s.villain?` · <b>${tFullLabel(s)}</b>`:""}</div>
+    ${tableHtml(s)}
+    <div class="spot">${spotCaption(s)}</div>
+    ${cardsHtml(state.cur.cards)}
+    <div class="handtag">${handTag(hand)}</div>
+    <div class="answers ${acts.length<=2?'one':acts.length===3?'three':''}" id="answers"></div>
+    <div id="fb"></div>
+    <div class="scorebar"><span>이번 세션 <b>${g.correct}/${g.total}</b></span>
+      <span>연속 정답 <b>${g.streak}</b> · 최고 <b>${g.best}</b></span></div></div>`;
+  $view.innerHTML=html;
+  const ansEl=document.getElementById("answers");
+  acts.forEach((a,i)=>{
+    const b=document.createElement("button"); b.className="ans"; b.dataset.act=a;
+    b.innerHTML=`<span class="k">${i+1}</span><span class="dot" style="background:var(--${tcat(a)})"></span>${TACT_LABEL[s.tab][a]}`;
+    b.onclick=()=>tAnswer(a);
+    ansEl.appendChild(b);
+  });
+  if(state.answered) showTResult();
+}
+function tAnswer(a){
+  if(state.answered) return;
+  state.answered=true; state.chosen=a;
+  const {s,hand}=state.cur; const vec=s.hands[hand];
+  const ok = vec[AIDX[a]] >= vec[bestIdx(vec)]-1e-9;     // chose a (co-)most-frequent action
+  const k=cellKey(s,hand); const p=progress[k]||{s:0,c:0,streak:0,w:0};
+  p.s++; if(ok){p.c++;p.streak=(p.streak||0)+1;p.w=0;} else {p.streak=0;p.w=1;}
+  progress[k]=p; saveProgress();
+  const g=state.session; g.total++;
+  if(ok){g.correct++;g.streak++;g.best=Math.max(g.best,g.streak);} else g.streak=0;
+  showTResult();
+}
+function showTResult(){
+  const {s,hand}=state.cur; const vec=s.hands[hand]; const chosen=state.chosen;
+  const bi=bestIdx(vec); const best=T4[bi];
+  document.querySelectorAll("#answers .ans").forEach(b=>{
+    b.disabled=true; const a=b.dataset.act;
+    if(a===chosen && vec[AIDX[a]]>=vec[bi]-1e-9) b.classList.add("correct");
+    else if(a===best) b.classList.add("reveal");
+    else if(a===chosen) b.classList.add("wrong");
+  });
+  const idxs=[0,1,2,3].filter(i=>vec[i]>0.0001).sort((x,y)=>vec[y]-vec[x]);
+  let bars=`<div class="tbars"><div class="tbars-h">GTO 믹스 빈도 (근사 추정치)</div>`;
+  idxs.forEach(i=>{ const a=T4[i], f=vec[i];
+    bars+=`<div class="trow ${i===bi?'best':''}">
+      <div class="tbar"><div class="tfill ${tcat(a)}" style="width:${Math.round(f*100)}%"></div>
+        <span class="tlabel">${TACT_LABEL[s.tab][a]}</span><span class="tfreq">${Math.round(f*100)}%</span></div></div>`;
+  });
+  bars+=`</div>`;
+  const cf=vec[AIDX[chosen]]; let band,verdict;
+  if(cf>=vec[bi]-1e-9){ band="good"; verdict="정답 (최선) ✓"; }
+  else if(cf>=0.20){ band="ok"; verdict="차선"; }
+  else { band="bad"; verdict="오답 ✗"; }
+  bars+=`<div class="tverdict ${band}">${verdict}
+    <small>선택 ${TACT_LABEL[s.tab][chosen]} ${Math.round(cf*100)}% · 최선 ${TACT_LABEL[s.tab][best]} ${Math.round(vec[bi]*100)}%</small></div>`;
+  document.getElementById("fb").innerHTML=bars;
+  const card=$view.querySelector(".card");
+  if(!card.querySelector(".next")){
+    const nx=document.createElement("button"); nx.className="next"; nx.textContent="다음 (Space)";
+    nx.onclick=nextQuestion; card.appendChild(nx);
+  }
+}
+
 function gridTable(s, hlHand){
   const R=DATA.ranks;
   let h='<div class="gridwrap"><table class="grid">';
@@ -480,6 +668,7 @@ function legendFor(s){
   return h+"</div>";
 }
 function renderBrowse(){
+  if(isTourney()) return renderTBrowse();
   const vil = state.tab==="rfi" ? "" : state.bVillain;
   const s=sitsFor(state.tab).find(x=>x.hero===state.bHero && (x.villain||"")===vil)
         || sitsFor(state.tab)[0];
@@ -489,12 +678,61 @@ function renderBrowse(){
     ${gridTable(s,null)}${legendFor(s)}</div>`;
 }
 
+// ---- tournament browse: each cell shows its action-frequency colour bands ----
+function tCellBg(vec){
+  const segs=[[2,"value"],[3,"allin"],[1,"call"],[0,"fold"]];   // raise,allin,call,fold L->R
+  let acc=0, stops=[];
+  segs.forEach(([i,cat])=>{ const f=vec[i]; if(f>0.0001){ const b=acc+f;
+    stops.push(`var(--${cat}) ${(acc*100).toFixed(1)}% ${(b*100).toFixed(1)}%`); acc=b; } });
+  if(!stops.length) return "var(--fold)";
+  if(acc<0.999) stops.push(`var(--fold) ${(acc*100).toFixed(1)}% 100%`);
+  return `linear-gradient(90deg,${stops.join(",")})`;
+}
+function tGridTable(s, hlHand){
+  const R=TJ.ranks;
+  let h='<div class="gridwrap"><table class="grid tgrid">';
+  for(let i=0;i<13;i++){ h+="<tr>";
+    for(let j=0;j<13;j++){
+      const hand = i===j?R[i]+R[i] : i<j?R[i]+R[j]+"s" : R[j]+R[i]+"o";
+      const vec=s.hands[hand];
+      const title=hand+": "+[2,1,3,0].filter(k=>vec[k]>0.0001)
+        .map(k=>TACT_LABEL[s.tab][T4[k]]+" "+Math.round(vec[k]*100)+"%").join(", ");
+      h+=`<td class="${hand===hlHand?'hl':''}" style="background:${tCellBg(vec)}" title="${title}">${hand}</td>`;
+    }
+    h+="</tr>";
+  }
+  return h+"</table></div>";
+}
+function tLegendFor(s){
+  const tot=[0,0,0,0]; let n=0;
+  DATA.hands.forEach(hand=>{ const c=combos(hand), v=s.hands[hand]; n+=c;
+    for(let k=0;k<4;k++) tot[k]+=v[k]*c; });
+  let h='<div class="legend">';
+  [2,1,3,0].forEach(i=>{ const pct=tot[i]/n*100; if(pct<0.05) return;
+    h+=`<div class="lg"><span class="sw" style="background:var(--${tcat(T4[i])})"></span>
+      ${TACT_LABEL[s.tab][T4[i]]} <b style="margin-left:4px">${pct.toFixed(1)}%</b></div>`; });
+  return h+"</div>";
+}
+function renderTBrowse(){
+  const s=(state.tab==="rfi"
+    ? sitsFor(state.tab).find(x=>x.hero===state.bHero)
+    : sitsFor(state.tab).find(x=>x.hero===state.bHero && tMatchKey(x)===state.bVillain))
+    || sitsFor(state.tab)[0];
+  if(!s){ $view.innerHTML='<div class="card"><div class="ctx">차트 없음</div></div>'; return; }
+  const ctx = s.tab==="rfi" ? `${state.stack} · <b>${TAB_LABEL[s.tab]}</b> · <b>${s.hero}</b>`
+                            : `${state.stack} · <b>${TAB_LABEL[s.tab]}</b> · <b>${tFullLabel(s)}</b>`;
+  $view.innerHTML=`<div class="card"><div class="ctx" style="margin-bottom:14px">${ctx}</div>
+    ${tGridTable(s,null)}${tLegendFor(s)}
+    <div class="muted" style="margin-top:10px">셀 색 띠 = 액션 빈도(근사치) · 빨강 ${TACT_LABEL[s.tab].raise} · 초록 Call · 진홍 All-in · 회색 Fold</div></div>`;
+}
+
 function renderStats(){
   let seen=0,correct=0;
   const perSit={};
-  SITS.forEach(s=>{ perSit[sitKey(s)]={label:s.label,tab:s.tab,s:0,c:0}; });
+  const all=allSits();
+  all.forEach(s=>{ perSit[sitKey(s)]={label:(s.stack?s.stack+" ":"")+tFullLabel(s),tab:s.tab,s:0,c:0}; });
   for(const k in progress){
-    const p=progress[k]; const sk=k.split("|").slice(0,3).join("|");
+    const p=progress[k]; const sk=k.split("|").slice(0,-1).join("|");   // drop trailing hand
     seen+=p.s; correct+=p.c;
     if(perSit[sk]){ perSit[sk].s+=p.s; perSit[sk].c+=p.c; }
   }
@@ -504,7 +742,7 @@ function renderStats(){
     <div class="statgrid">
       <div class="stat"><div class="v">${acc}%</div><div class="l">전체 정답률</div></div>
       <div class="stat"><div class="v">${seen}</div><div class="l">총 시도</div></div>
-      <div class="stat"><div class="v">${distinct}/${SITS.length*169}</div><div class="l">학습한 핸드</div></div>
+      <div class="stat"><div class="v">${distinct}/${all.length*169}</div><div class="l">학습한 핸드</div></div>
     </div>`;
   const weak=Object.values(perSit).filter(x=>x.s>=4).map(x=>({...x,acc:x.c/x.s}))
     .sort((a,b)=>a.acc-b.acc).slice(0,8);
@@ -525,9 +763,16 @@ function renderStats(){
 
 function renderFootnote(){
   const url="https://poker-coaching.s3.amazonaws.com/tools/preflop-charts/full-preflop-charts.pdf";
-  document.getElementById("footnote").innerHTML =
-    DATA.meta.assumptions +
-    '<br>출처: <a href="'+url+'" target="_blank" rel="noopener">'+DATA.meta.source+'</a>';
+  if(isTourney()){
+    document.getElementById("footnote").innerHTML =
+      `<b>${state.stack}</b> 유효스택 토너먼트 차트(안티 포함). 셀 빈도는 차트 이미지에서 추출한 `+
+      `<b>근사 추정치</b>이며, 가장 높은 빈도의 액션을 정답으로 채점합니다.<br>출처: `+
+      ((TJ.meta&&TJ.meta.source)||"PokerCoaching Ultimate Tournament Preflop Guide");
+  } else {
+    document.getElementById("footnote").innerHTML =
+      DATA.meta.assumptions +
+      '<br>출처: <a href="'+url+'" target="_blank" rel="noopener">'+DATA.meta.source+'</a>';
+  }
 }
 function renderAll(){
   renderTabs(); renderModes(); renderFilters();
@@ -543,8 +788,13 @@ document.addEventListener("keydown",e=>{
   if(e.key===" "){ e.preventDefault();
     if(state.answered) nextQuestion(); return; }
   if(!state.answered && state.cur){
-    const acts=DATA.actionSets[state.cur.s.actionSet];
-    const n=parseInt(e.key); if(n>=1&&n<=acts.length) answer(acts[n-1]);
+    if(isTourney()){
+      const acts=tActs(state.cur.s);
+      const n=parseInt(e.key); if(n>=1&&n<=acts.length) tAnswer(acts[n-1]);
+    } else {
+      const acts=DATA.actionSets[state.cur.s.actionSet];
+      const n=parseInt(e.key); if(n>=1&&n<=acts.length) answer(acts[n-1]);
+    }
   }
 });
 
