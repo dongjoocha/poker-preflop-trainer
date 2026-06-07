@@ -117,7 +117,8 @@
   .lg .sw{width:12px;height:12px;border-radius:3px}
   td.allin{background:var(--allin)}
   /* ---- tournament: mixed-frequency display ---- */
-  table.tgrid td{color:#fff}                          /* match cash grid exactly: white text, no shadow */
+  table.tgrid td{color:#fff}                          /* white text, no shadow (cells with a colour band) */
+  table.tgrid td.tf{color:#8b98a5}                    /* 100%-fold cell: faint label */
   .tbars{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
   .tbars-h{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
   .trow{display:flex;align-items:center;margin:6px 0;font-size:13px}
@@ -701,7 +702,8 @@ function tGridTable(s, hlHand){
       const vec=s.hands[hand];
       const title=hand+": "+[2,1,3,0].filter(k=>vec[k]>0.0001)
         .map(k=>TACT_LABEL[s.tab][T4[k]]+" "+Math.round(vec[k]*100)+"%").join(", ");
-      h+=`<td class="${hand===hlHand?'hl':''}" style="background:${tCellBg(vec)}" title="${title}">${hand}</td>`;
+      const cls=(vec[0]>0.999?"tf ":"")+(hand===hlHand?"hl":"");   // 100% fold -> faint label
+      h+=`<td class="${cls.trim()}" style="background:${tCellBg(vec)}" title="${title}">${hand}</td>`;
     }
     h+="</tr>";
   }
