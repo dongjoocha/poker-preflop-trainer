@@ -13,7 +13,8 @@
     --bg:#0f1419; --panel:#1a2027; --panel2:#222b34; --line:#2c3742;
     --txt:#e6edf3; --dim:#8b98a5; --accent:#f5d442;
     --value:#e8453c; --bluff:#3d6fd6; --call:#3fae5a; --fold:#5b6672;
-    --allin:#7d1d1d;   /* dark maroon = short-stack all-in / jam */
+    --foldcell:#39424d;  /* fold colour used INSIDE the 13x13 grid cells (cash + tournament) */
+    --allin:#7d1d1d;   /* dark maroon = short-stack all-in / jam (no cash equivalent) */
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--txt);
@@ -108,7 +109,7 @@
   table.grid td{width:30px;height:30px;text-align:center;font-size:10px;font-weight:600;
     border-radius:4px;color:#fff;cursor:default;font-variant-numeric:tabular-nums}
   td.value{background:var(--value)} td.bluff{background:var(--bluff)}
-  td.call{background:var(--call)} td.fold{background:#39424d;color:#8b98a5}
+  td.call{background:var(--call)} td.fold{background:var(--foldcell);color:#8b98a5}
   td.hl{outline:3px solid var(--accent);outline-offset:-1px}
   .legend{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:14px}
   .lg{display:flex;align-items:center;gap:6px;font-size:12px;background:var(--panel2);
@@ -116,7 +117,7 @@
   .lg .sw{width:12px;height:12px;border-radius:3px}
   td.allin{background:var(--allin)}
   /* ---- tournament: mixed-frequency display ---- */
-  table.tgrid td{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.7)}
+  table.tgrid td{color:#fff}                          /* match cash grid exactly: white text, no shadow */
   .tbars{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
   .tbars-h{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
   .trow{display:flex;align-items:center;margin:6px 0;font-size:13px}
@@ -679,13 +680,16 @@ function renderBrowse(){
 }
 
 // ---- tournament browse: each cell shows its action-frequency colour bands ----
+// Colours match the cash grid exactly (raise=value red, call=green, fold=--foldcell);
+// all-in has no cash equivalent so it uses the dark-maroon --allin.
+const TBANDCOL={value:"var(--value)", allin:"var(--allin)", call:"var(--call)", fold:"var(--foldcell)"};
 function tCellBg(vec){
   const segs=[[2,"value"],[3,"allin"],[1,"call"],[0,"fold"]];   // raise,allin,call,fold L->R
   let acc=0, stops=[];
   segs.forEach(([i,cat])=>{ const f=vec[i]; if(f>0.0001){ const b=acc+f;
-    stops.push(`var(--${cat}) ${(acc*100).toFixed(1)}% ${(b*100).toFixed(1)}%`); acc=b; } });
-  if(!stops.length) return "var(--fold)";
-  if(acc<0.999) stops.push(`var(--fold) ${(acc*100).toFixed(1)}% 100%`);
+    stops.push(`${TBANDCOL[cat]} ${(acc*100).toFixed(1)}% ${(b*100).toFixed(1)}%`); acc=b; } });
+  if(!stops.length) return TBANDCOL.fold;
+  if(acc<0.999) stops.push(`${TBANDCOL.fold} ${(acc*100).toFixed(1)}% 100%`);
   return `linear-gradient(90deg,${stops.join(",")})`;
 }
 function tGridTable(s, hlHand){
